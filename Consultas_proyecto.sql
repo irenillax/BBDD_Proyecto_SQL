@@ -296,16 +296,20 @@ group by a.actor_id, a.first_name, a.last_name
 order by num_peliculas desc, a.last_name, a.first_name;
 
 -- 48 Crea una vista llamada 'actor_num_peliculas' que muestre los nombres de los actores y el número de películas en las que han participado.
-create view actor_numero_peliculas as
-select concat("first_name", ' ', "last_name") as "Nombre actor", count("film"."film_id") as "Número películas"
-from "actor"
-left join "film_actor" 
-    on "actor"."actor_id" = "film_actor"."actor_id"
-left join "film" 
-    on "film_actor"."film_id" = "film"."film_id"
-group by "actor"."first_name", "actor"."last_name";
-
--- NOTA: Esta es la consulta más aproximada a lo que se pide en este apartado. No obstante, da un error al aplicarla. 
+select
+    a.actor_id,
+    a.first_name,
+    a.last_name,
+    COUNT(fa.film_id) as num_peliculas
+from actor a
+join film_actor fa 
+    on fa.actor_id = a.actor_id
+group by
+    a.actor_id,
+    a.first_name,
+    a.last_name
+order by 
+    num_peliculas desc;
 
 -- 49 Calcula el nímero total de alquileres realizados por cada cliente. 
 select c.customer_id, c.first_name, c.last_name, COUNT(r.rental_id) as total_alquileres
@@ -331,18 +335,20 @@ select "Número cliente", "Número alquileres"
 from cliente_rentas_temporal;
 
 -- 52 Crea una tabla temporal llamada 'películas_alquiladas' que almacene las películas que hans ido alquiladas al menos 10 veces. 
-with "peliculas_alquiladas" as (
-	select "title" as "Título película", count(inventory.inventory_id) as "Total alquileres"
-	from "film"
-	full join "inventory"
-		on film.film_id = inventory.film_id
-	full join "rental"
-		on inventory.inventory_id = rental.inventory_id
-	group by film.title
-	having count(inventory.inventory_id) >= 10
-	order by count(inventory.inventory_id))
-select "Título película", "Total alquileres"
-from "peliculas_alquiladas";
+select
+    f.title AS titulo_pelicula,
+    COUNT(r.rental_id) as total_alquileres
+from film f
+join inventory i 
+    on i.film_id = f.film_id
+join rental r 
+    on r.inventory_id = i.inventory_id
+group by
+    f.title
+having 
+    COUNT(r.rental_id) >= 10
+order by
+    total_alquileres desc;
 
 -- 53 Encuentra el título de las películas que han sido alquiladas por el cliente con el nombre 'Tammy Sanders' y que aún no se han devuelto. Ordena los resultados alfabéticamente por título de película.
 select distinct f.title
@@ -366,37 +372,44 @@ where c.name = 'Sci-Fi'
 order by a.last_name, a.first_name;
 
 -- 55 Encuentra el nombre y apellido de los actores que han actuado en películas que se alquilaron después de que la película 'Spartacus Cheaper' se alquilara por primera vez. Ordena los resultados alfabéticamente por apellido. 
-select MIN(r.rental_date) as primera_vez
-from rental r
-join inventory i on i.inventory_id = r.inventory_id
-join film f      on f.film_id = i.film_id
-where f.title = 'SPARTACUS CHEAPER';
-
-select distinct a.first_name, a.last_name
-from actor      a
-join film_actor fa on fa.actor_id  = a.actor_id
-join inventory  i  on i.film_id    = fa.film_id
-join rental     r  on r.inventory_id = i.inventory_id
-where r.rental_date > (
-  select MIN(r2.rental_date)
-  from rental    r2
-  join inventory i2 on i2.inventory_id = r2.inventory_id
-  join film      f2 on f2.film_id      = i2.film_id
-  where f2.title = 'SPARTACUS CHEAPER'
-)
-order by a.last_name, a.first_name;
-
--- NOTA: Primero, he intentado obtener la primera fecha en la que se alquiló la película 'Spartacus Cheaper'. Después, he buscado los actores que han actuado en películas que se alquilaron después de esa fecha.
+select distinct
+    a.first_name,
+    a.last_name
+from actor a
+join film_actor fa on fa.actor_id = a.actor_id
+join inventory i   on i.film_id   = fa.film_id
+join rental r      on r.inventory_id = i.inventory_id
+where r.rental_date >
+    (
+        select MIN(r2.rental_date)
+        from rental r2
+        join inventory i2 on i2.inventory_id = r2.inventory_id
+        join film f2 on f2.film_id = i2.film_id
+        where LOWER(f2.title) = 'spartacus cheaper'
+    )
+order by
+    a.last_name,
+    a.first_name;
 
 -- 56 Encuentra el nombre y apellido de los actores que no han actuado en ninguna película de la categoría 'Music'.
-select distinct a.first_name, a.last_name
+select
+    a.first_name,
+    a.last_name
 from actor a
-left join film_actor   fa on fa.actor_id = a.actor_id
-left join film_category fc
-      on fc.film_id = fa.film_id
-      and fc.category_id = (select category_id from category where name = 'Music')
-where fc.film_id is null
-order by a.last_name, a.first_name;
+where a.actor_id not in (
+    select distinct fa.actor_id
+    from actor a2
+    join film_actor fa 
+        on fa.actor_id = a2.actor_id
+    join film_category fc 
+        on fc.film_id = fa.film_id
+    join category c 
+        on c.category_id = fc.category_id
+    where c.name = 'Music'
+)
+order by
+    a.last_name,
+    a.first_name;
 
 -- 57 Encuentra el título de todas las películas que fueron alquiladas por más de 8 días. 
 select distinct f.title
